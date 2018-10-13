@@ -33,15 +33,19 @@ from modules import m_reader_plus
 
 # config = config_match_lstm.config
 # config = config_match_lstm_plus.config
-config = config_r_net.config
+# config = config_r_net.config
 # config = config_bi_daf.config
 # config = config_qa_net.config
 # config = config_m_reader.config
-# config = config_m_reader_plus.config
+config = config_m_reader_plus.config
 
 
 def train():
     time_start = time.time()
+
+    # 切分初赛测试数据
+    file_path = 'data/测试集标准答案.json'
+    preprocess_data.split_data_set(file_path)
 
     # prepare
     preprocess_data.gen_pre_file_for_train()
@@ -50,7 +54,7 @@ def train():
     embedding_np = loader.load_w2v(config.train_embedding + '.npy')
 
     # prepare: train_df, val_df
-    preprocess_data.gen_train_datafile()
+    preprocess_data.gen_train_val_datafile()
 
     # load data
     print('load data...')
@@ -72,8 +76,7 @@ def train():
         val_data = loader.load_data(config.val_df, config.train_vocab_path, config.tag_path)
         with open(config.val_pkl, 'wb') as file:
             pickle.dump(val_data, file)
-
-    print('load data finished, time:%d' % (time.time()-time0))
+    print('train_size:%d, val_size:%d, time:%d' % (len(train_data[0]), len(val_data[0]), time.time()-time0))
 
     # build train, val dataloader
     train_loader = loader.build_loader(

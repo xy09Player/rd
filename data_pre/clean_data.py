@@ -3,7 +3,7 @@
 
 
 import re
-from langconv import Converter
+from data_pre.langconv import Converter
 
 
 def deal_data(data):

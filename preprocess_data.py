@@ -14,59 +14,119 @@ import pickle
 import time
 import sys
 import gensim
-from sklearn import model_selection
 from config import config_base
 
 config = config_base.config
 
 
+# 处理初赛测试集:  随机切分：4:1, 并以json形式返回
+def split_data_set(file_path):
+    if os.path.isfile(config.val_data) is False:
+        with open(file_path, 'r') as file:
+            data = json.load(file)
+            np.random.seed(33)
+            np.random.shuffle(data)
+            data_train = data[: 16000]
+            data_val = data[16000:]
+
+        with open(config.train_data_2, 'w') as file:
+            json.dump(data_train, file)
+
+        with open(config.val_data, 'w') as file:
+            json.dump(data_val, file)
+
+        print('split data set, train_data_2_size:%d, val_data_size:%d' % (len(data_train), len(data_val)))
+
+
 # convert .json to .pandas
 # return: df
-def organize_data(file_path):
+def organize_data(file_paths):
+    result = []
+    for file_path in file_paths:
+        with open(file_path, 'r') as file:
+            data = json.load(file)
+            for dc in data:
+                temp = [dc['article_id'], dc['article_type'], dc['article_title'], dc['article_content']]
+                for items in dc['questions']:
+                    r = copy.deepcopy(temp)
+                    r = r + list(items.values())
+                    result.append(r)
 
-    with open(file_path, 'r') as file:
-        data = json.load(file)
-        result = []
-        for dc in data:
-            temp = [dc['article_id'], dc['article_type'], dc['article_title'], dc['article_content']]
-            for items in dc['questions']:
-                r = copy.deepcopy(temp)
-                r = r + list(items.values())
-                result.append(r)
-        if 'answer' in data[0]['questions'][0]:
-            columns = ['article_id', 'article_type', 'article_title', 'article_content', 'question_id',
-                       'article_question', 'article_answer', 'question_type']
-        else:
-            columns = ['article_id', 'article_type', 'article_title', 'article_content', 'question_id',
-                       'article_question']
-        df = pd.DataFrame(data=result, columns=columns)
+    if 'answer' in data[0]['questions'][0]:
+        columns = ['article_id', 'article_type', 'article_title', 'article_content', 'question_id',
+                   'article_question', 'article_answer', 'question_type']
+    else:
+        columns = ['article_id', 'article_type', 'article_title', 'article_content', 'question_id',
+                   'article_question']
 
-        return df
+    df = pd.DataFrame(data=result, columns=columns)
+    print('organize_data, size:%d' % len(df))
+    return df
 
 
+# 0. 替换null值
 # 1. 除掉多余空格、删除'\u3000'
-# 2. 繁简体转换
+# 2. 全半角转换 + 繁简体转换
 # 3. 删除答案中，不好的结尾符
-def deal_data_for_train(df):
+def deal_data_for_train(df):  # 非常耗时
+    # title
+    titles = df['article_title'].values
+    titles = [t.strip() if (t == t) and t is not None else '' for t in titles]
+    titles = clean_data.deal_data(titles)
+    title_flag = [True if t != '' else False for t in titles]
+    df['title'] = titles
 
-    # 1, 2
-    df['title'] = clean_data.deal_data(df['article_title'].values)
-    df['content'] = clean_data.deal_data(df['article_content'].values)
-    df['question'] = clean_data.deal_data(df['article_question'].values)
+    # content
+    contents = df['article_content'].values
+    contents = [c.strip() if (c == c) and c is not None else '' for c in contents]
+    contents = clean_data.deal_data(contents)
+    content_flag = [True if c != '' else False for c in contents]
+    df['content'] = contents
+
+    # question
+    questions = df['article_question'].values
+    questions = [q.strip() if (q == q) and q is not None else '' for q in questions]
+    questions = clean_data.deal_data(questions)
+    question_flag = [True if q != '' else False for q in questions]
+    df['question'] = questions
+
+    # flag
+    flag = []
+    for ft, fc, fq in zip(title_flag, content_flag, question_flag):
+        if ft and fc and fq:
+            flag.append(True)
+        else:
+            flag.append(False)
 
     # 3
     if 'article_answer' in df:
-        df['answer'] = clean_data.deal_data(df['article_answer'].values)
+        answers = df['article_answer'].values
+        answers = [a.strip() if (a == a) and a is not None else '' for a in answers]
+        answers = clean_data.deal_data(answers)
+        answer_flag = [True if a != '' else False for a in answers]
+
+        df['answer'] = answers
 
         # 除掉句首句尾标点，及空格
-        answers = df[df['answer'] != '']['answer'].values
+        answers = df[answer_flag]['answer'].values
         drop_list_zh = ['。', '，', '、', '；', '：', '？', '！']
         drop_list_en = ['.', '?', '!', ';', ':', ',', '-', '...', '..', '....']
         drop_list = drop_list_zh + drop_list_en
         answers = [answer[:-1].strip() if answer[-1] in drop_list else answer for answer in answers]
         answers = [answer[1:].strip() if answer[0] in drop_list else answer for answer in answers]
 
-        df.loc[df['answer'] != '', 'answer'] = answers
+        df.loc[answer_flag, 'answer'] = answers
+
+        flag_tmp = []
+        for f, fa in zip(flag, answer_flag):
+            if f and fa:
+                flag_tmp.append(True)
+            else:
+                flag_tmp.append(False)
+        flag = flag_tmp
+
+    df['flag_null'] = flag
+    print('deal data for train/val/test(空值), num:%d/%d, ratio:%.4f' % (sum(flag), len(df), sum(flag)/len(df)))
 
     return df
 
@@ -74,15 +134,15 @@ def deal_data_for_train(df):
 def deal_data_for_test(df):
     # 主要是除掉 前后空格
     titles = df['article_title'].values
-    titles = [t.strip() for t in titles]
+    titles = [t.strip() if (t == t) and t is not None else ' ' for t in titles]
     df['title'] = titles
 
     contents = df['article_content'].values
-    contents = [c.strip() for c in contents]
+    contents = [c.strip() if (c == c) and c is not None else ' 'for c in contents]
     df['content'] = contents
 
     questions = df['article_question'].values
-    questions = [q.strip() for q in questions]
+    questions = [q.strip() if (q == q) and q is not None else ' ' for q in questions]
     df['question'] = questions
 
     return df
@@ -438,38 +498,6 @@ def select_data(df):
     return df
 
 
-# build train, val, test dataset
-def split_dataset(df):
-    # deal data: 能找到答案
-    all_data = len(df)
-    print('all data size:%d' % all_data)
-    # split train, val dataset
-    train_df, val_df = model_selection.train_test_split(df, test_size=0.1, random_state=0)
-    test_df = val_df.copy()
-
-    # deal train, val data
-    train_len = len(train_df)
-    train_df = train_df[train_df['answer_start'] > -1]
-    train_df = train_df[train_df['answer_end'] > -1]
-    train_df = train_df[train_df['for_train']]
-    train_df = train_df[['question', 'title', 'shorten_content', 'answer_start', 'answer_end']]
-    print('train size:%d, shorten train size:%d' % (train_len, len(train_df)))
-
-    # deal val data
-    val_len = len(val_df)
-    val_df = val_df[val_df['answer_start'] > -1]
-    val_df = val_df[val_df['answer_end'] > -1]
-    val_df = val_df[val_df['for_train']]
-    val_df = val_df[['question', 'title', 'shorten_content', 'answer_start', 'answer_end']]
-    print('val size:%d, shorten val size:%d' % (val_len, len(val_df)))
-
-    # deal test data
-    print('fake test data size:%d' % len(val_df))
-    test_df = test_df
-
-    return train_df, val_df, test_df
-
-
 def build_vocab_embedding(list_df, vocab_path, embedding_in_zh, embedding_in_en, embedding_out):
     data = []
     for df in list_df:
@@ -532,6 +560,8 @@ def gen_tag_index(df):
     tag2i = {'<pad>': 0, '<unk>': 1}
     cc = 2
     for d in data:
+        if d.strip() == '':
+            continue
         if utils.is_zh_or_en(d):
             _, tags = utils.split_word_zh(d, have_tag=True)
         else:
@@ -553,14 +583,16 @@ def gen_pre_file_for_train():
         print('gen train prepared file...')
 
         # 组织数据 json -> df
-        df = organize_data(config.train_data)
+        df_train = organize_data([config.train_data_1, config.train_data_2])
+        df_val = organize_data([config.val_data])
 
         # 数据预处理
-        df = deal_data_for_train(df)
+        df_train = deal_data_for_train(df_train)
+        df_val = deal_data_for_train(df_val)
 
         # vocab, embedding
         build_vocab_embedding(
-            list_df=[df],
+            list_df=[df_train, df_val],
             vocab_path=config.train_vocab_path,
             embedding_in_zh=config.pre_embedding_zh,
             embedding_in_en=config.pre_embedding_en,
@@ -568,7 +600,7 @@ def gen_pre_file_for_train():
         )
 
         # 生成词性表
-        gen_tag_index(df)
+        gen_tag_index(df_train)
 
         print('gen train prepared file, time；%d' % (time.time()-time0))
 
@@ -578,7 +610,7 @@ def gen_pre_file_for_test():
         time0 = time.time()
         print('gen test prepared file...')
         # 组织数据 json -> df
-        df = organize_data(config.test_data)
+        df = organize_data([config.test_data])
         # 数据预处理
         df = deal_data_for_test(df)
         # vocab, embedding
@@ -592,46 +624,68 @@ def gen_pre_file_for_test():
         print('gen test prepared file, time:%d' % (time.time()-time0))
 
 
-def gen_train_datafile():
+def gen_train_val_datafile():
     if os.path.isfile(config.train_df) is False:
         time0 = time.time()
-        print('gen train data...')
-
+        print('gen train df...')
         # read .json
-        df = organize_data(config.train_data)
+        df = organize_data([config.train_data_1, config.train_data_2])
         # 预处理数据
         df = deal_data_for_train(df)
+        df = df[df['flag_null']]
         # shorten content
         df = shorten_content_all(df, config.max_len)
         # answer_range
         df = build_answer_range(df)
         # 确定脏数据
         df = select_data(df)
-        # split train, val
-        df_train, df_val, df_test = split_dataset(df)
-        # to .csv
-        df_train.to_csv(config.train_df, index=False)
-        df_val.to_csv(config.val_df, index=False)
-        df_test.to_csv(config.test_val_df, index=False)
+        # 确定训练集
+        df_len = len(df)
+        df = df[df['answer_start'] > -1]
+        df = df[df['answer_end'] > -1]
+        df = df[df['for_train']]
+        df = df[['question', 'title', 'shorten_content', 'answer_start', 'answer_end']]
+        print('train size:%d/%d, ratio:%.4f' % (len(df), df_len, len(df)/df_len))
+        df.to_csv(config.train_df, index=False)
+        print('gen train df time:%d' % (time.time()-time0))
 
-        print('gen train data time:%d' % (time.time()-time0))
+    if os.path.isfile(config.val_df) is False:
+        time0 = time.time()
+        print('gen val df...')
+        # read .json
+        df = organize_data([config.val_data])
+        # 预处理数据
+        df = deal_data_for_train(df)
+        df = df[df['flag_null']]
+        # shorten content
+        df = shorten_content_all(df, config.max_len)
+        # answer_range
+        df = build_answer_range(df)
+        # 确定脏数据
+        df = select_data(df)
+        # 确定训练集
+        df_len = len(df)
+        df = df[df['answer_start'] > -1]
+        df = df[df['answer_end'] > -1]
+        df = df[df['for_train']]
+        df = df[['question', 'title', 'shorten_content', 'answer_start', 'answer_end']]
+        print('val size:%d/%d, ratio:%.4f' % (len(df), df_len, len(df)/df_len))
+        df.to_csv(config.val_df, index=False)
+        print('gen val df time:%d' % (time.time()-time0))
 
 
 def gen_test_datafile():
     time0 = time.time()
-    print('gen test data...')
-
+    print('gen test df...')
     # read .json
-    df = organize_data(config.test_data)
+    df = organize_data([config.test_data])
     # 预处理数据
     df = deal_data_for_test(df)
     # shorten content
     df = shorten_content_all(df, config.max_len)
     # to .csv
     df.to_csv(config.test_df, index=False)
-
-    print('test data size:%d' % len(df))
-    print('gen test data time:%d' % (time.time()-time0))
+    print('gen test df size:%d, time:%d' % (len(df), time.time()-time0))
 
 if __name__ == '__main__':
     pass

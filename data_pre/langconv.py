@@ -12,7 +12,7 @@ except:
 try:
     from data_pre.zh_wiki import zh2Hant, zh2Hans
 except ImportError:
-    from zh_wiki import zh2Hant, zh2Hans
+    from data_pre.zh_wiki import zh2Hant, zh2Hans
 
 import sys
 py3k = sys.version_info >= (3, 0, 0)
