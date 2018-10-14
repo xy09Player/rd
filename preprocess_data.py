@@ -19,23 +19,30 @@ from config import config_base
 config = config_base.config
 
 
-# 处理初赛测试集:  随机切分：4:1, 并以json形式返回
-def split_data_set(file_path):
+# 整合 训练数据集 + 初赛数据集
+def split_data_set():
     if os.path.isfile(config.val_data) is False:
-        with open(file_path, 'r') as file:
-            data = json.load(file)
-            np.random.seed(33)
-            np.random.shuffle(data)
-            data_train = data[: 16000]
-            data_val = data[16000:]
+        data = []
+        with open(config.data_1, 'r') as file:
+            data_1 = json.load(file)
+            data += data_1
+        with open(config.data_2, 'r') as file:
+            data_2 = json.load(file)
+            data += data_2
 
-        with open(config.train_data_2, 'w') as file:
+        np.random.seed(3)
+        np.random.shuffle(data)
+        data_len = len(data)
+        split_len = data_len // 10 * 9
+
+        data_train = data[: split_len]
+        data_val = data[split_len:]
+        with open(config.train_data, 'w') as file:
             json.dump(data_train, file)
-
         with open(config.val_data, 'w') as file:
             json.dump(data_val, file)
 
-        print('split data set, train_data_2_size:%d, val_data_size:%d' % (len(data_train), len(data_val)))
+        print('split data set:%d, train_size:%d, val_size:%d' % (data_len, len(data_train), len(data_val)))
 
 
 # convert .json to .pandas
@@ -583,7 +590,7 @@ def gen_pre_file_for_train():
         print('gen train prepared file...')
 
         # 组织数据 json -> df
-        df_train = organize_data([config.train_data_1, config.train_data_2])
+        df_train = organize_data([config.train_data])
         df_val = organize_data([config.val_data])
 
         # 数据预处理
@@ -629,7 +636,7 @@ def gen_train_val_datafile():
         time0 = time.time()
         print('gen train df...')
         # read .json
-        df = organize_data([config.train_data_1, config.train_data_2])
+        df = organize_data([config.train_data])
         # 预处理数据
         df = deal_data_for_train(df)
         df = df[df['flag_null']]
@@ -674,17 +681,17 @@ def gen_train_val_datafile():
         print('gen val df time:%d' % (time.time()-time0))
 
 
-def gen_test_datafile():
+def gen_test_datafile(test_data, test_df):
     time0 = time.time()
     print('gen test df...')
     # read .json
-    df = organize_data([config.test_data])
+    df = organize_data([test_data])
     # 预处理数据
     df = deal_data_for_test(df)
     # shorten content
     df = shorten_content_all(df, config.max_len)
     # to .csv
-    df.to_csv(config.test_df, index=False)
+    df.to_csv(test_df, index=False)
     print('gen test df size:%d, time:%d' % (len(df), time.time()-time0))
 
 if __name__ == '__main__':

@@ -3,18 +3,21 @@
 
 
 class ConfigBase:
-    train_data_1 = 'data/first_question.json'
-    train_data_2 = 'data/second_question.json'
-    val_data = 'data/val.json'
-    test_data = 'data/val.json'
+    data_1 = 'data/first_question.json'
+    data_2 = 'data/测试集标准答案.json'
+    train_data = 'data_gen/train.json'
+    val_data = 'data_gen/val.json'
+    test_data = 'data/公布测试集-0919.json'
 
     max_len = 500
     train_df = 'data_gen/train_df.csv'
     val_df = 'data_gen/val_df.csv'
+    test_val_df = 'data_gen/test_val_df.csv'
     test_df = 'data_gen/test_df.csv'
 
     train_pkl = 'data_gen/train_df.pkl'
     val_pkl = 'data_gen/val_df.pkl'
+    test_val_pkl = 'data_gen/test_val_df.pkl'
     test_pkl = 'data_gen/test_df.pkl'
 
     train_vocab_path = 'data_gen/train_vocab.pkl'
@@ -42,5 +45,7 @@ class ConfigBase:
     dropout_p = 0.2
     max_grad = 5
     val_every = 100
+
+    val_split_value = 1.3
 
 config = ConfigBase()

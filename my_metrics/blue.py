@@ -1,5 +1,6 @@
 import math
-import common
+from my_metrics import common
+
 
 class Bleu(object):
     def __init__(self, n_size=4):

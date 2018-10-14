@@ -397,9 +397,9 @@ def tags2index(tags_list, tag_path):
 
 
 def gen_str(titles, shorten_contents, questions, result_starts, result_ends, add_liangci=False):
-    if add_liangci:
-        with open('data_gen/liangci_set.pkl', 'rb') as file:
-            liangci_set = pickle.load(file)
+    # if add_liangci:
+    #     with open('data_gen/liangci_set.pkl', 'rb') as file:
+    #         liangci_set = pickle.load(file)
 
     result = []
     ccc = 0
@@ -416,12 +416,12 @@ def gen_str(titles, shorten_contents, questions, result_starts, result_ends, add
             continue
 
         # 当标题为空时， 文本为空时， 答案为空
-        if (t != t) and (c != c):
+        if (t.strip() == '') and (c.strip() == ''):
             result.append('')
             continue
 
         # 如果问题为空，则答案也为空
-        if q != q:
+        if q.strip() == '':
             result.append('')
             continue
 
@@ -459,25 +459,25 @@ def gen_str(titles, shorten_contents, questions, result_starts, result_ends, add
                 r = ' '.join(r)
 
         # 为答案增加量词
+        if add_liangci:
+            if len(r) >= 1 and r.isdigit() and len(c_list) > (e+1):
+                r = r + c_list[e+1]
+                ccc += 1
+
         # if add_liangci:
         #     if len(r) >= 1 and r[-1].isdigit() and len(c_list) > (e+1):
-        #         r = r + c_list[e+1]
         #         ccc += 1
-
-        if add_liangci:
-            if len(r) >= 1 and r[-1].isdigit() and len(c_list) > (e+1):
-                ccc += 1
-                word = c_list[e+1]
-                if word in liangci_set:
-                    r = r + word
-                    cccc += 1
-                else:
-                    for i in range(len(word)-1, 0, -1):
-                        word_tmp = word[: i]
-                        if word_tmp in liangci_set:
-                            r = r + word_tmp
-                            cccc += 1
-                            break
+        #         word = c_list[e+1]
+        #         if word in liangci_set:
+        #             r = r + word
+        #             cccc += 1
+        #         else:
+        #             for i in range(len(word)-1, 0, -1):
+        #                 word_tmp = word[: i]
+        #                 if word_tmp in liangci_set:
+        #                     r = r + word_tmp
+        #                     cccc += 1
+        #                     break
 
         # 前后无空格
         r = r.strip()
@@ -494,6 +494,6 @@ def gen_str(titles, shorten_contents, questions, result_starts, result_ends, add
 
         result.append(r)
 
-    print('add liangci %d/%d' % (cccc, ccc))
+    # print('add liangci %d/%d' % (cccc, ccc))
 
     return result

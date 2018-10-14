@@ -42,9 +42,7 @@ config = config_m_reader_plus.config
 # config = config_ensemble.config
 
 
-gen_result = True
-
-def test(gen_result=True):
+def test(gen_result):
     time0 = time.time()
 
     # prepare
@@ -58,11 +56,10 @@ def test(gen_result=True):
 
     # prepare: test_df
     if config.is_true_test and (os.path.isfile(config.test_df) is False):
-        preprocess_data.gen_test_datafile()
+        preprocess_data.gen_test_datafile(config.test_data, config.test_df)
 
     if (config.is_true_test is False) and (os.path.isfile(config.test_val_df) is False):
-        print('please run train code, again')
-        assert 1 == -1
+        preprocess_data.gen_test_datafile(config.val_data, config.test_val_df)
 
     # load data
     if config.is_true_test is False:
@@ -215,13 +212,14 @@ def test(gen_result=True):
 
         # my_metrics
         if config.is_true_test is False:
-            answer_true = df['answer'].values
+            answer_true = df['article_answer'].values
             assert len(result) == len(answer_true)
             blue_score = blue.Bleu()
             rouge_score = rouge_test.RougeL()
             for a, r in zip(answer_true, result):
-                blue_score.add_inst(r, a)
-                rouge_score.add_inst(r, a)
+                if a == a:
+                    blue_score.add_inst(r, a)
+                    rouge_score.add_inst(r, a)
             print('rouge_L score: %.4f, blue score:%.4f' % (rouge_score.get_score(), blue_score.get_score()))
 
         # to .csv
@@ -229,9 +227,6 @@ def test(gen_result=True):
             df['answer_pred'] = result
             df['answer_start_pred'] = result_start
             df['answer_end_pred'] = result_end
-
-            df = df[['article_id', 'title', 'content', 'question', 'answer', 'answer_pred',
-                     'answer_start', 'answer_end', 'answer_start_pred', 'answer_end_pred']]
             csv_path = os.path.join('result', config.model_test+'_val.csv')
             df.to_csv(csv_path, index=False)
 
@@ -480,4 +475,5 @@ if __name__ == '__main__':
         # test_ensemble_fix()
     else:
         print('single model...')
+        gen_result = config.gen_result
         test(gen_result)

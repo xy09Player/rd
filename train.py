@@ -43,9 +43,7 @@ config = config_m_reader_plus.config
 def train():
     time_start = time.time()
 
-    # 切分初赛测试数据
-    file_path = 'data/测试集标准答案.json'
-    preprocess_data.split_data_set(file_path)
+    preprocess_data.split_data_set()
 
     # prepare
     preprocess_data.gen_pre_file_for_train()
@@ -234,10 +232,10 @@ def train():
                 print('training, epochs:%2d, steps:%5d, train_loss:%.4f, val_loss:%.4f, time:%4ds' %
                       (e, sum(steps), train_loss/train_c, val_loss/val_c, time.time()-time_start+time_use))
 
-                if val_loss/val_c >= 0.97:
+                if val_loss/val_c >= config.val_split_value:
                     grade_1 = True
                     grade_2 = False
-                elif val_loss/val_c < 0.97:
+                elif val_loss/val_c < config.val_split_value:
                     grade_1 = False
                     grade_2 = True
 
