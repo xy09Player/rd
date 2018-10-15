@@ -28,6 +28,6 @@ def run(file_in, file_out):
 
 
 if __name__ == '__main__':
-    file_in = '../data/glove.840B.300d.txt'
-    file_out = '../data/glove300.txt'
+    file_in = '../data/my_glove_vectors.txt'
+    file_out = '../data/my_glove.txt'
     run(file_in, file_out)

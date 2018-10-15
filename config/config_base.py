@@ -24,7 +24,8 @@ class ConfigBase:
     test_vocab_path = 'data_gen/test_vocab.pkl'
     tag_path = 'data_gen/tag2index.pkl'
 
-    pre_embedding_zh = 'data/merge_sgns_bigram_char300.txt'
+    # pre_embedding_zh = 'data/merge_sgns_bigram_char300.txt'
+    pre_embedding_zh = 'data/my_w2v.txt'
     pre_embedding_en = 'data/glove300.txt'
     train_embedding = 'data_gen/train_embedding'
     test_embedding = 'data_gen/test_embedding'
