@@ -59,7 +59,8 @@ def test(gen_result):
         preprocess_data.gen_test_datafile(config.test_data, config.test_df)
 
     if (config.is_true_test is False) and (os.path.isfile(config.test_val_df) is False):
-        preprocess_data.gen_test_datafile(config.val_data, config.test_val_df)
+        print('run gen_train_val_datafile() again')
+        assert 1 == -1
 
     # load data
     if config.is_true_test is False:
@@ -212,7 +213,7 @@ def test(gen_result):
 
         # my_metrics
         if config.is_true_test is False:
-            answer_true = df['article_answer'].values
+            answer_true = df['answer'].values
             assert len(result) == len(answer_true)
             blue_score = blue.Bleu()
             rouge_score = rouge_test.RougeL()

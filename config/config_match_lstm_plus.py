@@ -17,6 +17,8 @@ class Config(config_base.ConfigBase):
     val_every = 100
     val_mean = False
 
+    val_split_value = 1.3
+
     # 联合训练
     is_for_rouge = True
     if is_for_rouge:

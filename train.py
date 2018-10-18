@@ -43,7 +43,7 @@ config = config_m_reader_plus.config
 def train():
     time_start = time.time()
 
-    preprocess_data.split_data_set()
+    preprocess_data.merge_data_set()
 
     # prepare
     preprocess_data.gen_pre_file_for_train()

@@ -459,10 +459,10 @@ def gen_str(titles, shorten_contents, questions, result_starts, result_ends, add
                 r = ' '.join(r)
 
         # 为答案增加量词
-        if add_liangci:
-            if len(r) >= 1 and r.isdigit() and len(c_list) > (e+1):
-                r = r + c_list[e+1]
-                ccc += 1
+        # if add_liangci:
+        #     if len(r) >= 1 and r.isdigit() and len(c_list) > (e+1):
+        #         r = r + c_list[e+1]
+        #         ccc += 1
 
         # if add_liangci:
         #     if len(r) >= 1 and r[-1].isdigit() and len(c_list) > (e+1):

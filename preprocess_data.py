@@ -14,14 +14,15 @@ import pickle
 import time
 import sys
 import gensim
+from sklearn import model_selection
 from config import config_base
 
 config = config_base.config
 
 
 # 整合 训练数据集 + 初赛数据集
-def split_data_set():
-    if os.path.isfile(config.val_data) is False:
+def merge_data_set():
+    if os.path.isfile(config.data) is False:
         data = []
         with open(config.data_1, 'r') as file:
             data_1 = json.load(file)
@@ -30,34 +31,24 @@ def split_data_set():
             data_2 = json.load(file)
             data += data_2
 
-        np.random.seed(3)
-        np.random.shuffle(data)
-        data_len = len(data)
-        split_len = data_len // 10 * 9
+        with open(config.data, 'w') as file:
+            json.dump(data, file)
 
-        data_train = data[: split_len]
-        data_val = data[split_len:]
-        with open(config.train_data, 'w') as file:
-            json.dump(data_train, file)
-        with open(config.val_data, 'w') as file:
-            json.dump(data_val, file)
-
-        print('split data set:%d, train_size:%d, val_size:%d' % (data_len, len(data_train), len(data_val)))
+        print('merge data set:%d' % len(data))
 
 
 # convert .json to .pandas
 # return: df
-def organize_data(file_paths):
+def organize_data(file_path):
     result = []
-    for file_path in file_paths:
-        with open(file_path, 'r') as file:
-            data = json.load(file)
-            for dc in data:
-                temp = [dc['article_id'], dc['article_type'], dc['article_title'], dc['article_content']]
-                for items in dc['questions']:
-                    r = copy.deepcopy(temp)
-                    r = r + list(items.values())
-                    result.append(r)
+    with open(file_path, 'r') as file:
+        data = json.load(file)
+        for dc in data:
+            temp = [dc['article_id'], dc['article_type'], dc['article_title'], dc['article_content']]
+            for items in dc['questions']:
+                r = copy.deepcopy(temp)
+                r = r + list(items.values())
+                result.append(r)
 
     if 'answer' in data[0]['questions'][0]:
         columns = ['article_id', 'article_type', 'article_title', 'article_content', 'question_id',
@@ -141,15 +132,15 @@ def deal_data_for_train(df):  # 非常耗时
 def deal_data_for_test(df):
     # 主要是除掉 前后空格
     titles = df['article_title'].values
-    titles = [t.strip() if (t == t) and t is not None else ' ' for t in titles]
+    titles = [t.strip() if (t == t) and t is not None and t.strip() != '' else ' ' for t in titles]
     df['title'] = titles
 
     contents = df['article_content'].values
-    contents = [c.strip() if (c == c) and c is not None else ' 'for c in contents]
+    contents = [c.strip() if (c == c) and c is not None and c.strip() != '' else ' 'for c in contents]
     df['content'] = contents
 
     questions = df['article_question'].values
-    questions = [q.strip() if (q == q) and q is not None else ' ' for q in questions]
+    questions = [q.strip() if (q == q) and q is not None and q.strip() != '' else ' ' for q in questions]
     df['question'] = questions
 
     return df
@@ -505,6 +496,38 @@ def select_data(df):
     return df
 
 
+# build train, val, test dataset
+def split_dataset(df):
+    # deal data: 能找到答案
+    all_data = len(df)
+    print('all data size:%d' % all_data)
+    # split train, val dataset
+    train_df, val_df = model_selection.train_test_split(df, test_size=0.1, random_state=3)
+    test_df = val_df.copy()
+
+    # deal train, val data
+    train_len = len(train_df)
+    train_df = train_df[train_df['answer_start'] > -1]
+    train_df = train_df[train_df['answer_end'] > -1]
+    train_df = train_df[train_df['for_train']]
+    train_df = train_df[['question', 'title', 'shorten_content', 'answer_start', 'answer_end']]
+    print('train size:%d, shorten train size:%d' % (train_len, len(train_df)))
+
+    # deal val data
+    val_len = len(val_df)
+    val_df = val_df[val_df['answer_start'] > -1]
+    val_df = val_df[val_df['answer_end'] > -1]
+    val_df = val_df[val_df['for_train']]
+    val_df = val_df[['question', 'title', 'shorten_content', 'answer_start', 'answer_end']]
+    print('val size:%d, shorten val size:%d' % (val_len, len(val_df)))
+
+    # deal test data
+    print('fake test data size:%d' % len(val_df))
+    test_df = test_df
+
+    return train_df, val_df, test_df
+
+
 def build_vocab_embedding(list_df, vocab_path, embedding_in_zh, embedding_in_en, embedding_out):
     data = []
     for df in list_df:
@@ -590,16 +613,14 @@ def gen_pre_file_for_train():
         print('gen train prepared file...')
 
         # 组织数据 json -> df
-        df_train = organize_data([config.train_data])
-        df_val = organize_data([config.val_data])
+        df_train = organize_data(config.data)
 
         # 数据预处理
         df_train = deal_data_for_train(df_train)
-        df_val = deal_data_for_train(df_val)
 
         # vocab, embedding
         build_vocab_embedding(
-            list_df=[df_train, df_val],
+            list_df=[df_train],
             vocab_path=config.train_vocab_path,
             embedding_in_zh=config.pre_embedding_zh,
             embedding_in_en=config.pre_embedding_en,
@@ -617,7 +638,7 @@ def gen_pre_file_for_test():
         time0 = time.time()
         print('gen test prepared file...')
         # 组织数据 json -> df
-        df = organize_data([config.test_data])
+        df = organize_data(config.test_data)
         # 数据预处理
         df = deal_data_for_test(df)
         # vocab, embedding
@@ -632,11 +653,11 @@ def gen_pre_file_for_test():
 
 
 def gen_train_val_datafile():
-    if os.path.isfile(config.train_df) is False:
+    if os.path.isfile(config.test_val_df) is False:
         time0 = time.time()
         print('gen train df...')
         # read .json
-        df = organize_data([config.train_data])
+        df = organize_data(config.data)
         # 预处理数据
         df = deal_data_for_train(df)
         df = df[df['flag_null']]
@@ -646,46 +667,21 @@ def gen_train_val_datafile():
         df = build_answer_range(df)
         # 确定脏数据
         df = select_data(df)
-        # 确定训练集
-        df_len = len(df)
-        df = df[df['answer_start'] > -1]
-        df = df[df['answer_end'] > -1]
-        df = df[df['for_train']]
-        df = df[['question', 'title', 'shorten_content', 'answer_start', 'answer_end']]
-        print('train size:%d/%d, ratio:%.4f' % (len(df), df_len, len(df)/df_len))
-        df.to_csv(config.train_df, index=False)
-        print('gen train df time:%d' % (time.time()-time0))
+        # 划分数据
+        train_df, val_df, test_val_df = split_dataset(df)
+        # save
+        train_df.to_csv(config.train_df, index=False)
+        val_df.to_csv(config.val_df, index=False)
+        test_val_df.to_csv(config.test_val_df, index=False)
 
-    if os.path.isfile(config.val_df) is False:
-        time0 = time.time()
-        print('gen val df...')
-        # read .json
-        df = organize_data([config.val_data])
-        # 预处理数据
-        df = deal_data_for_train(df)
-        df = df[df['flag_null']]
-        # shorten content
-        df = shorten_content_all(df, config.max_len)
-        # answer_range
-        df = build_answer_range(df)
-        # 确定脏数据
-        df = select_data(df)
-        # 确定训练集
-        df_len = len(df)
-        df = df[df['answer_start'] > -1]
-        df = df[df['answer_end'] > -1]
-        df = df[df['for_train']]
-        df = df[['question', 'title', 'shorten_content', 'answer_start', 'answer_end']]
-        print('val size:%d/%d, ratio:%.4f' % (len(df), df_len, len(df)/df_len))
-        df.to_csv(config.val_df, index=False)
-        print('gen val df time:%d' % (time.time()-time0))
+        print('gen train/val/test_val df time:%d' % (time.time()-time0))
 
 
 def gen_test_datafile(test_data, test_df):
     time0 = time.time()
     print('gen test df...')
     # read .json
-    df = organize_data([test_data])
+    df = organize_data(test_data)
     # 预处理数据
     df = deal_data_for_test(df)
     # shorten content
