@@ -205,7 +205,7 @@ def train():
                 if (train_c % (config.val_every//2) == 0) and (cc <= 1):
                     cc += 1
                     flag = True
-                elif grade_1 and (train_c % (config.val_every*5) == 0):
+                elif grade_1 and (train_c % (config.val_every*10) == 0):
                     flag = True
                 elif grade_2 and (train_c % config.val_every == 0):
                     flag = True

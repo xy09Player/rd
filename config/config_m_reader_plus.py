@@ -8,7 +8,7 @@ class Config(config_base.ConfigBase):
     model_name = 'm_reader_plus'
     model_save = model_name + '_1'
     is_bn = True
-    epoch = 12
+    epoch = 15
     mode = 'LSTM'
     batch_size = 32
     hidden_size = 100
@@ -17,7 +17,7 @@ class Config(config_base.ConfigBase):
     val_every = 100
     val_mean = False
 
-    val_split_value = 1.2
+    val_split_value = 1.1
 
     # 联合训练
     is_for_rouge = False
