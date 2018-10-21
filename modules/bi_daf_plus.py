@@ -7,14 +7,12 @@ from torch.nn import functional as f
 from modules.layers import embedding
 from modules.layers import encoder
 import utils
+from modules.layers import self_match_attention
+from modules.layers import pointer
 
 
 class Model(nn.Module):
-    """
-    bi-rdf for reading comprehension, 增强版
-    1. 增加self-attention
-    2. 最后的映射判断，改为两层，中间激活函数使用relu
-    """
+    """ bi-rdf for reading comprehension """
 
     def __init__(self, param):
         super(Model, self).__init__()
@@ -49,34 +47,50 @@ class Model(nn.Module):
         # modeling layer
         self.modeling_rnn = encoder.Rnn(
             mode=self.mode,
-            input_size=self.hidden_size * 10,
+            input_size=self.hidden_size * 8,
             hidden_size=self.hidden_size,
             dropout_p=self.dropout_p,
             bidirectional=True,
-            layer_num=2,
+            layer_num=1,
             is_bn=self.is_bn
         )
 
-        # outputs
-        self.p1 = nn.Sequential(
-            nn.Linear(self.hidden_size*12, self.hidden_size),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size, 1)
-        )
-
-        self.p2 = nn.Sequential(
-            nn.Linear(self.hidden_size*12, self.hidden_size),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size, 1)
-        )
-
-        self.rnn = encoder.Rnn(
+        # self matching attention
+        input_size = self.hidden_size * 2
+        self.self_match_attention = self_match_attention.SelfAttention(
             mode=self.mode,
-            input_size=self.hidden_size * 2,
+            input_size=input_size,
+            hidden_size=self.hidden_size,
+            dropout_p=self.dropout_p,
+            gated_attention=True,
+            is_bn=self.is_bn
+        )
+
+        # addition_rnn
+        self.addition_rnn = encoder.Rnn(
+            mode=self.mode,
+            input_size=input_size,
             hidden_size=self.hidden_size,
             bidirectional=True,
             dropout_p=self.dropout_p,
             layer_num=1,
+            is_bn=self.is_bn
+        )
+
+        # init state of pointer
+        self.init_state = pointer.AttentionPooling(
+            input_size=self.hidden_size*2,
+            output_size=self.hidden_size
+        )
+
+        # pointer
+        input_size = self.hidden_size * 2
+        self.pointer_net = pointer.BoundaryPointer(
+            mode=self.mode,
+            input_size=input_size,
+            hidden_size=self.hidden_size,
+            dropout_p=self.dropout_p,
+            bidirectional=True,
             is_bn=self.is_bn
         )
 
@@ -132,58 +146,11 @@ class Model(nn.Module):
             b = f.softmax(b, dim=1)  # (batch_size, c_len)
             q2c = torch.bmm(b.unsqueeze(1), c).expand(batch_size, c_len, -1)  # (batch_size, c_len, hidden_size*2)
 
-            return c2q, q2c
+            x = torch.cat([c, c2q, c * c2q, c * q2c], dim=2)
+            x = c_mask.unsqueeze(2) * x
+            x = x.transpose(0, 1)
 
-        def self_att(c, c_mask):
-            """
-            attention flow layer
-            :param c: (c_len, batch_size, hidden_size*2)
-            :param c_mask: (batch_size, c_len)
-            :return: c2c: (batch_size, c_len, hidden_size*2)
-            """
-            c_len = c.size(0)
-            batch_size = c.size(1)
-
-            c = self.dropout(c)
-
-            c = c.transpose(0, 1)
-            a = torch.bmm(c, c.transpose(1, 2))  # (batch_size, c_len, c_len)
-            mask = c_mask.eq(0)
-            mask = mask.unsqueeze(2).expand(batch_size, c_len, c_len)
-            a.masked_fill_(mask, -float('inf'))
-            a = f.softmax(a, dim=2)
-
-            c2c = torch.bmm(a, c)  # (batch_size, c_len, hidden_size*2)
-            return c2c
-
-        def output_layer(g, m, c_mask):
-            """
-            output layer
-            :param g: (c_len, batch_size, hidden_size*8)
-            :param m: (c_len, batch_size, hidden_size*2)
-            :param c_mask: (batch_size, c_len)
-            :return: ans_range(2, batch_size, content_len)
-            """
-            gm = self.dropout(torch.cat([g, m], dim=2))
-            p1 = self.p1(gm).squeeze(2).transpose(0, 1)  # (batch_size, c_len)
-
-            m = self.rnn(m, c_mask)
-            gm = self.dropout(torch.cat([g, m], dim=2))
-            p2 = self.p2(gm).squeeze(2).transpose(0, 1)  # (batch_size, c_len)
-
-            mask = c_mask.eq(0)
-            p1.masked_fill_(mask, -float('inf'))
-            p1 = f.softmax(p1, dim=1)
-            p2.masked_fill_(mask, -float('inf'))
-            p2 = f.softmax(p2, dim=1)
-
-            result = torch.stack([p1, p2])
-
-            # add 1e-6, and no gradient explosion
-            new_mask = (c_mask - 1) * (-1e-30)
-            result = result + new_mask.unsqueeze(0)
-
-            return result
+            return x
 
         content = batch[: 3]
         question = batch[3: 6]
@@ -201,16 +168,21 @@ class Model(nn.Module):
         question_vec = self.encoder(question_vec, question_mask)
 
         # attention flow layer
-        c2q, q2c = att_flow_layer(content_vec, content_mask, question_vec, question_mask)
-        c2c = self_att(content_vec, content_mask)  # (batch_size, c_len, h*2)
-        content_vec = content_vec.transpose(0, 1)
-        g = torch.cat([content_vec, c2c, c2q, content_vec*c2q, content_vec*q2c], dim=2).transpose(0, 1)  # (c_len, batch_size, h*10)
-        g = g * content_mask.transpose(0, 1).unsqueeze(2)
+        g = att_flow_layer(content_vec, content_mask, question_vec, question_mask)
 
         # modeling layer
         m = self.modeling_rnn(g, content_mask)
 
-        # outputs
-        ans_range = output_layer(g, m, content_mask)
+        # self matching attention
+        m = self.self_match_attention(m, content_mask)
+
+        # aggregation
+        m = self.addition_rnn(m, content_mask)
+
+        # init state of pointer
+        init_state = self.init_state(question_vec, question_mask)
+
+        # pointer
+        ans_range = self.pointer_net(m, content_mask, init_state)
 
         return ans_range
