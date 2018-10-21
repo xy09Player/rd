@@ -243,9 +243,9 @@ def deal_data(titles, contents, questions):
     qqq_in = []
 
     for t, c, q in zip(titles, contents, questions):
-        if t != t:
-            t_list = []
-            t_tag = []
+        if t != t or t.strip() == '':
+            t_list = [' ']
+            t_tag = ['x']
         else:
             if is_zh_or_en(t):
                 t = t + '。'
@@ -254,9 +254,9 @@ def deal_data(titles, contents, questions):
                 t = t + '. '
                 t_list, t_tag = split_word_en(t, have_tag=True)
 
-        if c != c:
-            c_list = []
-            c_tag = []
+        if c != c or c.strip() == '':
+            c_list = [' ']
+            c_tag = ['x']
         else:
             if is_zh_or_en(c):
                 c_list, c_tag = split_word_zh(c, have_tag=True)
@@ -270,7 +270,7 @@ def deal_data(titles, contents, questions):
             c_list = [' ']
             c_tag = ['x']
 
-        if q != q:
+        if q != q or q.strip() == '':
             q_list = [' ']
             q_tag = ['x']
         else:
@@ -397,14 +397,16 @@ def tags2index(tags_list, tag_path):
 
 
 def gen_str(titles, shorten_contents, questions, result_starts, result_ends, add_liangci=False):
-    # if add_liangci:
-    #     with open('data_gen/liangci_set.pkl', 'rb') as file:
-    #         liangci_set = pickle.load(file)
+    if add_liangci:
+        with open('data_gen/liangci_set.pkl', 'rb') as file:
+            liangci_set = pickle.load(file)
 
     result = []
     ccc = 0
     cccc = 0
     for t, c, q, s, e in zip(titles, shorten_contents, questions, result_starts, result_ends):
+        ccc += 1
+
         # 当问题等于标题时， 答案就是标题
         if q == t:
             result.append(t)
@@ -426,8 +428,8 @@ def gen_str(titles, shorten_contents, questions, result_starts, result_ends, add
             continue
 
         # 正常推断
-        if t != t:
-            t_list = []
+        if t != t or t.strip() == '':
+            t_list = [' ']
         else:
             flag_t = is_zh_or_en(t)
             if flag_t:
@@ -435,8 +437,8 @@ def gen_str(titles, shorten_contents, questions, result_starts, result_ends, add
             else:
                 t_list = split_word_en(t) + ['.']
 
-        if c != c:
-            c_list = []
+        if c != c or c.strip() == '':
+            c_list = [' ']
         else:
             flag_c = is_zh_or_en(c)
             if flag_c:
@@ -447,37 +449,19 @@ def gen_str(titles, shorten_contents, questions, result_starts, result_ends, add
         c_list = t_list + c_list
         r = c_list[s: e+1]
 
-        if (s >= 0) and (s <= len(t_list)-1):
-            if flag_t:
-                r = ''.join(r)
-            else:
-                r = ' '.join(r)
+        if is_zh_or_en(q):
+            r = ''.join(r)
         else:
-            if flag_c:
-                r = ''.join(r)
-            else:
-                r = ' '.join(r)
+            r = ' '.join(r)
 
         # 为答案增加量词
-        # if add_liangci:
-        #     if len(r) >= 1 and r.isdigit() and len(c_list) > (e+1):
-        #         r = r + c_list[e+1]
-        #         ccc += 1
-
-        # if add_liangci:
-        #     if len(r) >= 1 and r[-1].isdigit() and len(c_list) > (e+1):
-        #         ccc += 1
-        #         word = c_list[e+1]
-        #         if word in liangci_set:
-        #             r = r + word
-        #             cccc += 1
-        #         else:
-        #             for i in range(len(word)-1, 0, -1):
-        #                 word_tmp = word[: i]
-        #                 if word_tmp in liangci_set:
-        #                     r = r + word_tmp
-        #                     cccc += 1
-        #                     break
+        # 注意： 1. 是用最后一个字符，还是所有字符，需要待确定
+        # 2. 下一个词，还是下两个词，或者三个词，优先级，待确定
+        if add_liangci:
+            if len(r) >= 1 and r[-1].isdigit() and len(c_list) > (e+1):
+                if c_list[e+1] in liangci_set:
+                    r = r + c_list[e+1]
+                    cccc += 1
 
         # 前后无空格
         r = r.strip()
@@ -493,7 +477,5 @@ def gen_str(titles, shorten_contents, questions, result_starts, result_ends, add
                 r = r[1:].strip()
 
         result.append(r)
-
-    # print('add liangci %d/%d' % (cccc, ccc))
-
+    print('add liangci %d/%d' % (cccc, ccc))
     return result

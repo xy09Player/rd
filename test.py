@@ -5,7 +5,6 @@ import os
 import time
 import json
 import pickle
-from data_pre import title_question
 import pandas as pd
 import numpy as np
 import torch
@@ -40,10 +39,10 @@ from modules import m_reader_plus
 # config = config_match_lstm_plus.config
 # config = config_r_net.config
 # config = config_bi_daf.config
-config = config_bi_daf_plus.config
+# config = config_bi_daf_plus.config
 # config = config_m_reader.config
 # config = config_m_reader_plus.config
-# config = config_ensemble.config
+config = config_ensemble.config
 
 
 def test(gen_result):
@@ -335,8 +334,9 @@ def test_ensemble():
         blue_score = blue.Bleu()
         rouge_score = rouge_test.RougeL()
         for a, r in zip(answer_true, result):
-            blue_score.add_inst(r, a)
-            rouge_score.add_inst(r, a)
+            if a == a:
+                blue_score.add_inst(r, a)
+                rouge_score.add_inst(r, a)
         print('rouge_L score: %.4f, blue score:%.4f' % (rouge_score.get_score(), blue_score.get_score()))
 
     # to .csv
@@ -344,10 +344,7 @@ def test_ensemble():
         df['answer_pred'] = result
         df['answer_start_pred'] = result_start
         df['answer_end_pred'] = result_end
-
-        df = df[['article_id', 'title', 'content', 'question', 'answer', 'answer_pred',
-                 'answer_start', 'answer_end', 'answer_start_pred', 'answer_end_pred']]
-        csv_path = os.path.join('result', config.ensemble_name + '_val.csv')
+        csv_path = os.path.join('result', config.model_test+'_val.csv')
         df.to_csv(csv_path, index=False)
 
     print('time:%d' % (time.time()-time0))
@@ -455,8 +452,9 @@ def test_ensemble_fix():
         blue_score = blue.Bleu()
         rouge_score = rouge_test.RougeL()
         for a, r in zip(answer_true, result):
-            blue_score.add_inst(r, a)
-            rouge_score.add_inst(r, a)
+            if a == a:
+                blue_score.add_inst(r, a)
+                rouge_score.add_inst(r, a)
         print('rouge_L score: %.4f, blue score:%.4f' % (rouge_score.get_score(), blue_score.get_score()))
 
     # to .csv
