@@ -589,7 +589,7 @@ def test_ensemble_toupiao(config):
 
 
 if __name__ == '__main__':
-    is_ensemble = True
+    is_ensemble = False
 
     if is_ensemble:
         print('ensemble...')
@@ -646,5 +646,8 @@ if __name__ == '__main__':
     else:
         print('single model...')
         # config = config_match_lstm_plus.config
-        config = config_m_reader.config
+        # config = config_bi_daf.config
+        # config = config_m_reader.config
+        config = config_m_reader_plus.config
+
         test(gen_result=config.gen_result, config=config)

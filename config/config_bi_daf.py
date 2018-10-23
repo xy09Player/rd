@@ -6,7 +6,7 @@ from config import config_base
 
 class Config(config_base.ConfigBase):
     model_name = 'bi_daf'
-    model_save = model_name + '_2'
+    model_save = model_name + '_3'
     is_bn = True
     epoch = 15
     mode = 'LSTM'
@@ -27,7 +27,7 @@ class Config(config_base.ConfigBase):
         val_mean = True
 
     # 测试
-    model_test = 'bi_daf_2_mrt'
+    model_test = 'bi_daf_3_mrt'
     gen_result = True
     is_true_test = False
     test_batch_size = 64

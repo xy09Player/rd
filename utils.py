@@ -462,6 +462,14 @@ def gen_str(titles, shorten_contents, questions, result_starts, result_ends, add
                 if c_list[e+1] in liangci_set:
                     r = r + c_list[e+1]
                     cccc += 1
+                elif len(c_list) > (e+2) and (c_list[e+1] + c_list[e+2]) in liangci_set:
+                    r = r + c_list[e+1] + c_list[e+2]
+                    cccc += 1
+
+
+                # if c_list[e+1] in liangci_set:
+                #     r = r + c_list[e+1]
+                #     cccc += 1
 
         # 前后无空格
         r = r.strip()

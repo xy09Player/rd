@@ -27,9 +27,9 @@ class Config(config_base.ConfigBase):
         val_mean = True
 
     # 测试
-    model_test = 'm_reader_1_mrt'
+    model_test = 'm_reader_1'
     gen_result = True
-    is_true_test = False
+    is_true_test = True
     test_batch_size = 64
 
 config = Config()

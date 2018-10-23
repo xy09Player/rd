@@ -4,6 +4,7 @@
 import json
 from rouge import Rouge
 import pandas as pd
+import re
 import numpy as np
 import copy
 import os
@@ -133,14 +134,17 @@ def deal_data_for_test(df):
     # 主要是除掉 前后空格
     titles = df['article_title'].values
     titles = [t.strip() if (t == t) and t is not None and t.strip() != '' else ' ' for t in titles]
+    titles = [re.sub(r'\s+', ' ', t) for t in titles]
     df['title'] = titles
 
     contents = df['article_content'].values
     contents = [c.strip() if (c == c) and c is not None and c.strip() != '' else ' 'for c in contents]
+    contents = [re.sub(r'\s+', ' ', c) for c in contents]
     df['content'] = contents
 
     questions = df['article_question'].values
     questions = [q.strip() if (q == q) and q is not None and q.strip() != '' else ' ' for q in questions]
+    questions = [re.sub(r'\s+', ' ', q) for q in questions]
     df['question'] = questions
 
     return df
