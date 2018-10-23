@@ -35,17 +35,8 @@ from modules import qa_net
 from modules import m_reader
 from modules import m_reader_plus
 
-# config = config_match_lstm.config
-# config = config_match_lstm_plus.config
-# config = config_r_net.config
-# config = config_bi_daf.config
-# config = config_bi_daf_plus.config
-# config = config_m_reader.config
-# config = config_m_reader_plus.config
-config = config_ensemble.config
 
-
-def test(gen_result):
+def test(gen_result, config):
     time0 = time.time()
 
     # prepare
@@ -245,7 +236,7 @@ def test(gen_result):
     print('time:%d' % (time.time()-time0))
 
 
-def test_ensemble():
+def test_ensemble_jiaquan(config):
     time0 = time.time()
 
     if config.is_true_test:
@@ -350,7 +341,7 @@ def test_ensemble():
     print('time:%d' % (time.time()-time0))
 
 
-def test_ensemble_fix():
+def test_ensemble_max(config):
     time0 = time.time()
 
     if config.is_true_test:
@@ -462,21 +453,198 @@ def test_ensemble_fix():
         df['answer_pred'] = result
         df['answer_start_pred'] = result_start
         df['answer_end_pred'] = result_end
+        csv_path = os.path.join('result', config.model_test+'_val.csv')
+        df.to_csv(csv_path, index=False)
 
-        df = df[['article_id', 'title', 'content', 'question', 'answer', 'answer_pred',
-                 'answer_start', 'answer_end', 'answer_start_pred', 'answer_end_pred']]
-        csv_path = os.path.join('result', config.ensemble_name + '_val.csv')
+    print('time:%d' % (time.time()-time0))
+
+
+def test_ensemble_toupiao(config):
+    time0 = time.time()
+
+    if config.is_true_test:
+        df = pd.read_csv(config.test_df)
+    else:
+        df = pd.read_csv(config.test_val_df)
+
+    # 确定每个模型的 s, e, p值
+    model_num = len(config.model_lst)
+    ensemble_result = [[] for _ in range(model_num)]
+    for model, e_result in zip(config.model_lst, ensemble_result):
+        result_path = os.path.join('result/ans_range', model)
+        ans_range = torch.load(result_path)
+        s_p = ans_range['start_p']
+        e_p = ans_range['end_p']
+        s_p = torch.from_numpy(np.array(s_p))
+        e_p = torch.from_numpy(np.array(e_p))
+
+        dataset = data.TensorDataset(s_p, e_p)
+        p_loader = data.DataLoader(
+            dataset=dataset,
+            batch_size=config.test_batch_size,
+            shuffle=False,
+            drop_last=False
+        )
+
+        for ssss_p, eeee_p in p_loader:
+            s_e_p = torch.stack([ssss_p, eeee_p])
+            s, e = utils.answer_search(s_e_p)
+            s = s.reshape(-1).numpy().tolist()
+            e = e.reshape(-1).numpy().tolist()
+            for sss, eee in zip(s, e):
+                e_result.append([sss, eee])
+
+    # 确定所有模型的最优解
+    result_start = []
+    result_end = []
+    for i in range(len(ensemble_result[0])):
+        ss = {}
+        ee = {}
+        for j in range(model_num):
+            ss_tmp = ensemble_result[j][i][0]
+            ee_tmp = ensemble_result[j][i][1]
+
+            if ss_tmp in ss:
+                ss[ss_tmp] += config.model_weight[j]
+            else:
+                ss[ss_tmp] = config.model_weight[j]
+
+            if ee_tmp in ee:
+                ee[ee_tmp] += config.model_weight[j]
+            else:
+                ee[ee_tmp] = config.model_weight[j]
+
+        ss = sorted(ss.items(), key=lambda p: p[1], reverse=True)
+        ee = sorted(ee.items(), key=lambda p: p[1], reverse=True)
+
+        ss = ss[0][0]
+        ee = ee[0][0]
+
+        result_start.append(ss)
+        result_end.append(ee)
+
+    # 生成str结果
+    titles = df['title']
+    shorten_content = df['shorten_content']
+    question = df['question']
+    assert len(titles) == len(shorten_content) == len(result_start) == len(result_end)
+    result = utils.gen_str(titles, shorten_content, question, result_start, result_end, add_liangci=config.is_true_test)
+
+    # gen a submission
+    if config.is_true_test:
+        articled_ids = df['article_id'].astype(str).values.tolist()
+        question_ids = df['question_id'].values
+        submission = []
+        temp_a_id = articled_ids[0]
+        temp_qa = []
+        for a_id, q_id, a in zip(articled_ids, question_ids, result):
+            if a_id == temp_a_id:
+                sub = {'questions_id': q_id, 'answer': a}
+                temp_qa.append(sub)
+            else:
+                submission.append({'article_id': temp_a_id, 'questions': temp_qa})
+                temp_a_id = a_id
+                temp_qa = [{'questions_id': q_id, 'answer': a}]
+        submission.append({'article_id': temp_a_id, 'questions': temp_qa})
+
+        submission_article = [s['article_id'] for s in submission]
+        submission_questions = [s['questions'] for s in submission]
+        submission_dict = dict(zip(submission_article, submission_questions))
+
+        with open(config.test_data, 'r') as file:
+            all_data = json.load(file)
+        all_article = [d['article_id'] for d in all_data]
+
+        submission = []
+        for a_id in all_article:
+            if a_id in submission_dict:
+                submission.append({'article_id': a_id, 'questions': submission_dict[a_id]})
+            else:
+                submission.append({'article_id': a_id, 'questions': []})
+
+        with open(config.submission, mode='w', encoding='utf-8') as f:
+            json.dump(submission, f, ensure_ascii=False)
+
+    # my_metrics
+    if config.is_true_test is False:
+        answer_true = df['answer'].values
+        assert len(result) == len(answer_true)
+        blue_score = blue.Bleu()
+        rouge_score = rouge_test.RougeL()
+        for a, r in zip(answer_true, result):
+            if a == a:
+                blue_score.add_inst(r, a)
+                rouge_score.add_inst(r, a)
+        print('rouge_L score: %.4f, blue score:%.4f' % (rouge_score.get_score(), blue_score.get_score()))
+
+    # to .csv
+    if config.is_true_test is False:
+        df['answer_pred'] = result
+        df['answer_start_pred'] = result_start
+        df['answer_end_pred'] = result_end
+        csv_path = os.path.join('result', config.model_test+'_val.csv')
         df.to_csv(csv_path, index=False)
 
     print('time:%d' % (time.time()-time0))
 
 
 if __name__ == '__main__':
-    if config == config_ensemble.config:
+    is_ensemble = True
+
+    if is_ensemble:
         print('ensemble...')
-        test_ensemble()
-        # test_ensemble_fix()
+        config = config_ensemble.config
+        is_true_test = config.is_true_test
+        if is_true_test:
+            flag = '_submission.pkl'
+        else:
+            flag = '_val.pkl'
+        model_lst = config.model_lst
+        print('model num:%d' % len(model_lst))
+
+        config_lst = [config_match_lstm_plus.config,
+                      config_r_net.config,
+                      config_bi_daf.config,
+                      config_m_reader_plus.config,
+                      config_m_reader.config]
+
+        model_name = [['match_lstm_plus_1', 'match_lstm_plus_2', 'match_lstm_plus_3',
+                       'match_lstm_plus_1_mrt', 'match_lstm_plus_2_mrt', 'match_lstm_plus_3_mrt'],
+
+                      ['r_net_1', 'r_net_2', 'r_net_3',
+                       'r_net_1_mrt', 'r_net_2_mrt', 'r_net_3_mrt'],
+
+                      ['bi_daf_1', 'bi_daf_2', 'bi_daf_3',
+                       'bi_daf_1_mrt', 'bi_daf_2_mrt', 'bi_daf_3_mrt'],
+
+                      ['m_reader_plus_1', 'm_reader_plus_2', 'm_reader_plus_3',
+                       'm_reader_plus_1_mrt', 'm_reader_plus_2_mrt', 'm_reader_plus_3_mrt'],
+
+                      ['m_reader_1', 'm_reader_2', 'm_reader_3',
+                       'm_reader_1_mrt', 'm_reader_2_mrt', 'm_reader_3_mrt']]
+
+        print('start single model...')
+        for i in range(5):
+            cfg = config_lst[i]
+            config = cfg
+            mdl_lst = model_name[i]
+            for mdl in mdl_lst:
+                config.gen_result = False
+                config.is_true_test = is_true_test
+                config.test_batch_size = 64
+                config.model_test = mdl
+                if (mdl+flag) in model_lst and os.path.isfile(os.path.join('result/ans_range', mdl+flag)) is False:
+                    print('gen ', os.path.join('result/ans_range', mdl+flag))
+                    test(gen_result=config.gen_result, config=config)
+                elif (mdl+flag) in model_lst:
+                    print(os.path.join('result/ans_range', mdl+flag), ', exiting')
+
+        config = config_ensemble.config
+        test_ensemble_jiaquan(config)
+        # test_ensemble_toupiao()
+        # test_ensemble_max()
     else:
         print('single model...')
-        gen_result = config.gen_result
-        test(gen_result)
+        # config = config_match_lstm_plus.config
+        config = config_m_reader.config
+        test(gen_result=config.gen_result, config=config)
