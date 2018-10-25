@@ -27,7 +27,7 @@ class Config(config_base.ConfigBase):
         val_mean = True
 
     # 测试
-    model_test = 'r_net_2'
+    model_test = 'r_net_3'
     gen_result = True
     is_true_test = False
     test_batch_size = 64

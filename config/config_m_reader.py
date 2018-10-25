@@ -8,12 +8,12 @@ class Config(config_base.ConfigBase):
     model_name = 'm_reader'
     model_save = model_name + '_1'
     is_bn = True
-    epoch = 15
+    epoch = 20
     mode = 'LSTM'
     batch_size = 32
     hidden_size = 100
     encoder_layer_num = 1
-    dropout_p = 0.2
+    dropout_p = 0.25
     val_every = 100
     val_mean = False
 
@@ -29,7 +29,7 @@ class Config(config_base.ConfigBase):
     # 测试
     model_test = 'm_reader_1'
     gen_result = True
-    is_true_test = True
+    is_true_test = False
     test_batch_size = 64
 
 config = Config()
