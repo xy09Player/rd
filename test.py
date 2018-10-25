@@ -589,9 +589,10 @@ def test_ensemble_toupiao(config):
 
 
 if __name__ == '__main__':
-    is_ensemble = False
+    is_ensemble = True
 
     if is_ensemble:
+        time0 = time.time()
         print('ensemble...')
         config = config_ensemble.config
         is_true_test = config.is_true_test
@@ -640,14 +641,18 @@ if __name__ == '__main__':
                     print(os.path.join('result/ans_range', mdl+flag), ', exiting')
 
         config = config_ensemble.config
+
         test_ensemble_jiaquan(config)
-        # test_ensemble_toupiao()
-        # test_ensemble_max()
+        # test_ensemble_toupiao(config)
+        # test_ensemble_max(config)
+
+        print('ensemble time:%d' % (time.time()-time0))
     else:
         print('single model...')
         # config = config_match_lstm_plus.config
         # config = config_bi_daf.config
         # config = config_m_reader.config
-        config = config_m_reader_plus.config
+        # config = config_m_reader_plus.config
+        config = config_r_net.config
 
         test(gen_result=config.gen_result, config=config)

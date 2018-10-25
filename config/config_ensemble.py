@@ -8,21 +8,39 @@ import utils
 class Config(config_base.ConfigBase):
     model_test = 'ensemble'
 
-    bi_daf_1 = 'bi_daf_1'  # 0.9004
+    match_lstm_plus_1 = 'match_lstm_plus_1'  # 0.9047
+    match_lstm_plus_2 = 'match_lstm_plus_2'  # 0.9048
+
+    r_net_1 = 'r_net_1'  # 0.9046
+    r_net_2 = 'r_net_2'  # 0.9049
+
     bi_daf_1_mrt = 'bi_daf_1_mrt'  # 0.9031
+    bi_daf_3 = 'bi_daf_3'  # 0.9028
 
     m_reader_plus_1 = 'm_reader_plus_1'  # 0.9054
-    m_reader_plus_1_mrt = 'm_reader_plus_1_mrt'  # 0.9045
+    m_reader_plus_3 = 'm_reader_plus_3'  # 0.9048
 
-    m_reader_1 = 'm_reader_1'  # 0.9015
     m_reader_1_mrt = 'm_reader_1_mrt'  # 0.9026
+    m_reader_2 = 'm_reader_2'  # 0.9014
 
     model_lst = [
+        match_lstm_plus_1,
+        match_lstm_plus_2,
+        r_net_1,
+        r_net_2,
         bi_daf_1_mrt,
+        bi_daf_3,
         m_reader_plus_1,
-        m_reader_1_mrt
+        m_reader_plus_3,
+        m_reader_1_mrt,
+        m_reader_2
+
     ]
-    model_weight = [0.9031, 0.9054, 0.9026]
+    model_weight = [0.9047, 0.9048,
+                    0.9046, 0.9049,
+                    0.9031, 0.9028,
+                    0.9054, 0.9048,
+                    0.9026, 0.9014]
     model_weight = utils.mean(model_weight)
 
     is_true_test = False
