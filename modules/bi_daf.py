@@ -148,7 +148,7 @@ class Model(nn.Module):
 
             result = torch.stack([p1, p2])
 
-            # add 1e-6, and no gradient explosion
+            # add 1e-30, and no gradient explosion
             new_mask = (c_mask - 1) * (-1e-30)
             result = result + new_mask.unsqueeze(0)
 

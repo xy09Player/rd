@@ -73,16 +73,3 @@ def build_loader(dataset, batch_size, shuffle, drop_last):
         drop_last=drop_last
     )
     return data_iter
-
-
-
-
-
-
-
-
-
-
-
-
-
